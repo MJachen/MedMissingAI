@@ -1,5 +1,5 @@
 data:
-  manifest: data/processed/manifest.csv
+  manifest: data/processed/brats2021_manifest.csv
   modalities: [t1, t1ce, t2, flair]
   target_shape: [64, 128, 128]
   zscore: true
