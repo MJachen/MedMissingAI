@@ -1,0 +1,22 @@
+seed: 42
+
+data:
+  manifest: data/manifest_example.csv
+  modalities: [t1, t1ce, t2, flair]
+  target_shape: [64, 128, 128]
+  zscore: true
+
+model:
+  name: missing_modality_cnn
+  num_classes: 2
+  use_modality_mask: true
+  base_channels: 16
+
+training:
+  save_dir: outputs/baseline
+  epochs: 10
+  batch_size: 1
+  num_workers: 0
+  lr: 0.0001
+  weight_decay: 0.0001
+  device: auto

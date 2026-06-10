@@ -1,0 +1,22 @@
+seed: 42
+
+data:
+  manifest: data/brats2021_manifest_smoke.csv
+  modalities: [t1, t1ce, t2, flair]
+  target_shape: [16, 32, 32]
+  zscore: true
+
+model:
+  name: missing_modality_cnn
+  num_classes: 2
+  use_modality_mask: true
+  base_channels: 4
+
+training:
+  save_dir: outputs/brats2021_smoke
+  epochs: 1
+  batch_size: 2
+  num_workers: 0
+  lr: 0.0001
+  weight_decay: 0.0001
+  device: auto

@@ -1,0 +1,10 @@
+seed: 42
+
+training:
+  save_dir: outputs/server_train
+  epochs: 100
+  batch_size: 2
+  num_workers: 4
+  lr: 0.0001
+  weight_decay: 0.0001
+  device: cuda

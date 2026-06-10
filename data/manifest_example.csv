@@ -1,0 +1,5 @@
+sample_id,label,split,t1,t1ce,t2,flair
+case_0001,0,train,data/raw/case_0001/t1.nii.gz,data/raw/case_0001/t1ce.nii.gz,,data/raw/case_0001/flair.nii.gz
+case_0002,1,val,data/raw/case_0002/t1.nii.gz,,data/raw/case_0002/t2.nii.gz,data/raw/case_0002/flair.nii.gz
+case_0003,1,test,,data/raw/case_0003/t1ce.nii.gz,data/raw/case_0003/t2.nii.gz,
+

@@ -1,0 +1,5 @@
+data:
+  manifest: data/manifest_example.csv
+  modalities: [t1, t1ce, t2, flair]
+  target_shape: [64, 128, 128]
+  zscore: true
