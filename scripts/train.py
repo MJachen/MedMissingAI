@@ -82,7 +82,7 @@ def main() -> None:
     )
 
     best_metric = -1.0
-    history: list[dict[str, float | int]] = []
+    history: list[dict[str, object]] = []
     epochs = int(config["training"]["epochs"])
 
     for epoch in range(1, epochs + 1):

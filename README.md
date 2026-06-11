@@ -187,6 +187,31 @@ python scripts/predict.py \
   --save-heatmap
 ```
 
+导出逐样本预测概率：
+
+```bash
+python scripts/export_predictions.py \
+  --data-config configs/data_local.yaml \
+  --train-config configs/train_local.yaml \
+  --model-config configs/model.yaml \
+  --split test
+```
+
+用验证集校准阈值，并分析测试集指标：
+
+```bash
+python scripts/export_predictions.py \
+  --data-config configs/data_local.yaml \
+  --train-config configs/train_local.yaml \
+  --model-config configs/model.yaml \
+  --split val
+
+python scripts/analyze_predictions.py \
+  --predictions outputs/local_debug/predictions_test.csv \
+  --calibration-predictions outputs/local_debug/predictions_val.csv \
+  --threshold-metric balanced_accuracy
+```
+
 ## BraTS2021 Smoke Run
 
 当前项目已支持从本机 BraTS2021 数据和标签 Excel 生成缺失模态 manifest：
@@ -237,6 +262,40 @@ conda run -n tensor python scripts/predict.py ^
   --sample-id BraTS2021_01517__t1 ^
   --save-heatmap
 ```
+
+服务器完整评估推荐流程：
+
+```bash
+export PYTHONPATH=src
+
+python scripts/evaluate.py \
+  --data-config configs/data_server.yaml \
+  --train-config configs/train_server.yaml \
+  --model-config configs/model.yaml \
+  --checkpoint outputs/server_train/best.pt \
+  --split test
+
+python scripts/export_predictions.py \
+  --data-config configs/data_server.yaml \
+  --train-config configs/train_server.yaml \
+  --model-config configs/model.yaml \
+  --checkpoint outputs/server_train/best.pt \
+  --split val
+
+python scripts/export_predictions.py \
+  --data-config configs/data_server.yaml \
+  --train-config configs/train_server.yaml \
+  --model-config configs/model.yaml \
+  --checkpoint outputs/server_train/best.pt \
+  --split test
+
+python scripts/analyze_predictions.py \
+  --predictions outputs/server_train/predictions_test.csv \
+  --calibration-predictions outputs/server_train/predictions_val.csv \
+  --threshold-metric balanced_accuracy
+```
+
+`analyze_predictions.py` 会保存整体指标、校准阈值指标、confusion matrix、sensitivity、specificity、balanced accuracy、precision、recall，以及按 `availability` 分组的缺失模态组合指标。
 
 ## 第 1 周任务清单
 
