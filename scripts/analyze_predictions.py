@@ -16,8 +16,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--predictions", required=True)
     parser.add_argument("--calibration-predictions", default=None)
     parser.add_argument("--output-json", default=None)
+    parser.add_argument("--main-table-csv", default=None)
     parser.add_argument("--by-availability-csv", default=None)
     parser.add_argument("--by-availability-calibrated-csv", default=None)
+    parser.add_argument("--calibration-group-column", default="availability")
     parser.add_argument(
         "--threshold-metric",
         default="balanced_accuracy",
@@ -31,6 +33,7 @@ def main() -> None:
     predictions_path = Path(args.predictions)
     predictions = pd.read_csv(predictions_path)
     output_json = Path(args.output_json or _default_output(predictions_path, "_metrics_detailed.json"))
+    main_table_csv = Path(args.main_table_csv or _default_output(predictions_path, "_main_table.csv"))
     by_availability_csv = Path(
         args.by_availability_csv or _default_output(predictions_path, "_metrics_by_availability.csv")
     )
@@ -45,7 +48,9 @@ def main() -> None:
         "predictions": str(predictions_path),
         "metrics_at_threshold_0_5": default_metrics,
         "calibration": None,
+        "calibration_by_group": None,
     }
+    main_rows = [_main_table_row("default_0_5", default_metrics)]
 
     write_by_availability(predictions, default_threshold, by_availability_csv)
 
@@ -61,11 +66,36 @@ def main() -> None:
             "calibration_metrics": calibration_metrics,
             "evaluation_metrics_at_calibrated_threshold": calibrated_metrics,
         }
-        write_by_availability(predictions, threshold, by_availability_calibrated_csv)
+        main_rows.append(_main_table_row("validation_calibrated", calibrated_metrics))
+
+        if _has_group_column(predictions, calibration, args.calibration_group_column):
+            thresholds_by_group = calibrate_threshold_by_group(
+                calibration,
+                args.calibration_group_column,
+                args.threshold_metric,
+            )
+            payload["calibration_by_group"] = {
+                "group_column": args.calibration_group_column,
+                "threshold_metric": args.threshold_metric,
+                "fallback_threshold": threshold,
+                "thresholds": thresholds_by_group,
+            }
+            write_by_availability_calibrated(
+                predictions,
+                thresholds_by_group,
+                threshold,
+                by_availability_calibrated_csv,
+                args.calibration_group_column,
+            )
+        else:
+            write_by_availability(predictions, threshold, by_availability_calibrated_csv)
 
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    main_table_csv.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(main_rows).to_csv(main_table_csv, index=False)
     print(f"Wrote {output_json}")
+    print(f"Wrote {main_table_csv}")
     print(f"Wrote {by_availability_csv}")
     if args.calibration_predictions is not None:
         print(f"Wrote {by_availability_calibrated_csv}")
@@ -105,6 +135,19 @@ def calibrate_threshold(frame: pd.DataFrame, metric_name: str) -> tuple[float, d
     return best_threshold, best_metrics
 
 
+def calibrate_threshold_by_group(
+    frame: pd.DataFrame,
+    group_column: str,
+    metric_name: str,
+) -> dict[str, float]:
+    _require_columns(frame, {group_column, "label", "prob_class_1"})
+    thresholds: dict[str, float] = {}
+    for group_name, group in frame.groupby(group_column, dropna=False):
+        threshold, _ = calibrate_threshold(group, metric_name)
+        thresholds[str(group_name)] = float(threshold)
+    return thresholds
+
+
 def write_by_availability(frame: pd.DataFrame, threshold: float, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if "availability" not in frame.columns:
@@ -135,6 +178,66 @@ def write_by_availability(frame: pd.DataFrame, threshold: float, output_path: Pa
         )
 
     pd.DataFrame(rows).sort_values("availability").to_csv(output_path, index=False)
+
+
+def write_by_availability_calibrated(
+    frame: pd.DataFrame,
+    thresholds_by_group: dict[str, float],
+    fallback_threshold: float,
+    output_path: Path,
+    group_column: str,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if group_column not in frame.columns:
+        pd.DataFrame().to_csv(output_path, index=False)
+        return
+
+    rows = []
+    for group_name, group in frame.groupby(group_column, dropna=False):
+        threshold = thresholds_by_group.get(str(group_name), fallback_threshold)
+        metrics = metrics_from_frame(group, threshold)
+        rows.append(
+            {
+                group_column: group_name,
+                "threshold": metrics["threshold"],
+                "threshold_source": "group" if str(group_name) in thresholds_by_group else "fallback",
+                "n": int(len(group)),
+                "auc": metrics.get("roc_auc"),
+                "balanced_accuracy": metrics["balanced_accuracy"],
+                "sensitivity": metrics["sensitivity"],
+                "specificity": metrics["specificity"],
+                "macro_f1": metrics["macro_f1"],
+                "accuracy": metrics["accuracy"],
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "tn": metrics["tn"],
+                "fp": metrics["fp"],
+                "fn": metrics["fn"],
+                "tp": metrics["tp"],
+            }
+        )
+
+    pd.DataFrame(rows).sort_values(group_column).to_csv(output_path, index=False)
+
+
+def _main_table_row(strategy: str, metrics: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "threshold_strategy": strategy,
+        "threshold": metrics["threshold"],
+        "auc": metrics.get("roc_auc"),
+        "balanced_accuracy": metrics["balanced_accuracy"],
+        "sensitivity": metrics["sensitivity"],
+        "specificity": metrics["specificity"],
+        "macro_f1": metrics["macro_f1"],
+    }
+
+
+def _has_group_column(
+    predictions: pd.DataFrame,
+    calibration: pd.DataFrame,
+    group_column: str,
+) -> bool:
+    return group_column in predictions.columns and group_column in calibration.columns
 
 
 def _score(metrics: dict[str, Any], metric_name: str) -> float:

@@ -62,6 +62,9 @@ def main() -> None:
         num_classes=int(config["model"]["num_classes"]),
         use_modality_mask=bool(config["model"].get("use_modality_mask", True)),
         base_channels=int(config["model"].get("base_channels", 16)),
+        use_learnable_missing_token=bool(
+            config["model"].get("use_learnable_missing_token", False)
+        ),
     ).to(device)
 
     checkpoint = torch.load(checkpoint_path, map_location=device)

@@ -17,6 +17,7 @@ def train_one_epoch(
     criterion: nn.Module,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    modality_dropout_prob: float = 0.0,
 ) -> dict[str, float]:
     model.train()
     total_loss = 0.0
@@ -26,6 +27,12 @@ def train_one_epoch(
         image = batch["image"].to(device)
         modality_mask = batch["modality_mask"].to(device)
         label = batch["label"].to(device)
+        if modality_dropout_prob > 0:
+            image, modality_mask = apply_modality_dropout(
+                image,
+                modality_mask,
+                modality_dropout_prob,
+            )
 
         optimizer.zero_grad(set_to_none=True)
         logits = model(image, modality_mask)
@@ -37,6 +44,35 @@ def train_one_epoch(
         total_count += label.size(0)
 
     return {"loss": total_loss / max(total_count, 1)}
+
+
+def apply_modality_dropout(
+    image: torch.Tensor,
+    modality_mask: torch.Tensor,
+    dropout_prob: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if dropout_prob <= 0:
+        return image, modality_mask
+    if dropout_prob >= 1:
+        raise ValueError("modality_dropout_prob must be less than 1.0")
+
+    present = modality_mask > 0
+    drop = torch.rand_like(modality_mask) < dropout_prob
+    keep = modality_mask.clone()
+    keep[present & drop] = 0.0
+
+    empty_rows = keep.sum(dim=1) == 0
+    if empty_rows.any():
+        for row_idx in torch.nonzero(empty_rows, as_tuple=False).flatten():
+            present_indices = torch.nonzero(present[row_idx], as_tuple=False).flatten()
+            if len(present_indices) > 0:
+                chosen = present_indices[
+                    torch.randint(len(present_indices), (1,), device=present_indices.device)
+                ]
+                keep[row_idx, chosen] = 1.0
+
+    image = image * keep.view(keep.shape[0], keep.shape[1], 1, 1, 1)
+    return image, keep
 
 
 @torch.no_grad()
@@ -97,4 +133,3 @@ def save_checkpoint(
         },
         path,
     )
-

@@ -297,6 +297,26 @@ python scripts/analyze_predictions.py \
 
 `analyze_predictions.py` 会保存整体指标、校准阈值指标、confusion matrix、sensitivity、specificity、balanced accuracy、precision、recall，以及按 `availability` 分组的缺失模态组合指标。
 
+主表文件会写到 `*_main_table.csv`，固定包含：
+
+- `auc`
+- `balanced_accuracy`
+- `sensitivity`
+- `specificity`
+- `macro_f1`
+
+其中 `default_0_5` 使用默认阈值 `0.5`，`validation_calibrated` 使用验证集按 `--threshold-metric` 选出的阈值。若预测文件包含 `availability`，脚本还会在 `*_metrics_by_availability_calibrated.csv` 中按每种可用模态组合单独校准阈值。
+
+下一轮训练默认按 `training.checkpoint_metric: balanced_accuracy` 选择 `best.pt`，并用 `training.class_weights: balanced` 启用 class-weighted CE。低成本缺失模态 baseline 可单独打开，避免多个改动混在一次实验里：
+
+```yaml
+training:
+  modality_dropout_prob: 0.1
+
+model:
+  use_learnable_missing_token: true
+```
+
 ## 第 1 周任务清单
 
 1. 用真实数据复制并修改 `data/manifest_example.csv`，确认每个 NIfTI 路径能被读取。

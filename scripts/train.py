@@ -73,8 +73,17 @@ def main() -> None:
         num_classes=int(config["model"]["num_classes"]),
         use_modality_mask=bool(config["model"].get("use_modality_mask", True)),
         base_channels=int(config["model"].get("base_channels", 16)),
+        use_learnable_missing_token=bool(
+            config["model"].get("use_learnable_missing_token", False)
+        ),
     ).to(device)
-    criterion = build_loss()
+    num_classes = int(config["model"]["num_classes"])
+    criterion = build_loss(
+        class_weights=config["training"].get("class_weights"),
+        labels=train_set.frame[spec.label_col].astype(int).tolist(),
+        num_classes=num_classes,
+        device=device,
+    )
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(config["training"]["lr"]),
@@ -84,15 +93,24 @@ def main() -> None:
     best_metric = -1.0
     history: list[dict[str, object]] = []
     epochs = int(config["training"]["epochs"])
+    checkpoint_metric = str(config["training"].get("checkpoint_metric", "balanced_accuracy"))
+    modality_dropout_prob = float(config["training"].get("modality_dropout_prob", 0.0))
 
     for epoch in range(1, epochs + 1):
-        train_metrics = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        train_metrics = train_one_epoch(
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            modality_dropout_prob=modality_dropout_prob,
+        )
         val_metrics = evaluate(
             model,
             val_loader,
             criterion,
             device,
-            num_classes=int(config["model"]["num_classes"]),
+            num_classes=num_classes,
             desc="val",
         )
 
@@ -104,12 +122,23 @@ def main() -> None:
         history.append(row)
         print(row)
 
-        score = float(val_metrics.get("accuracy", -val_metrics.get("loss", 0.0)))
+        score = _checkpoint_score(val_metrics, checkpoint_metric)
         if score >= best_metric:
             best_metric = score
             save_checkpoint(save_dir / "best.pt", model, optimizer, epoch, val_metrics, config)
 
     write_json(save_dir / "history.json", {"history": history})
+
+
+def _checkpoint_score(metrics: dict[str, object], metric_name: str) -> float:
+    if metric_name == "loss":
+        return -float(metrics.get("loss", 0.0))
+    if metric_name not in metrics:
+        raise ValueError(f"Validation metric `{metric_name}` is not available: {sorted(metrics)}")
+    value = metrics[metric_name]
+    if value is None:
+        raise ValueError(f"Validation metric `{metric_name}` is None")
+    return float(value)
 
 
 if __name__ == "__main__":

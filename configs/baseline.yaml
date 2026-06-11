@@ -10,6 +10,7 @@ model:
   name: missing_modality_cnn
   num_classes: 2
   use_modality_mask: true
+  use_learnable_missing_token: false
   base_channels: 16
 
 training:
@@ -19,4 +20,7 @@ training:
   num_workers: 0
   lr: 0.0001
   weight_decay: 0.0001
+  checkpoint_metric: balanced_accuracy
+  class_weights: balanced
+  modality_dropout_prob: 0.0
   device: auto
