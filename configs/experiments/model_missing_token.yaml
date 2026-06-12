@@ -1,0 +1,6 @@
+model:
+  name: missing_modality_cnn
+  num_classes: 2
+  use_modality_mask: true
+  use_learnable_missing_token: true
+  base_channels: 16

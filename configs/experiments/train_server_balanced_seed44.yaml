@@ -1,0 +1,13 @@
+seed: 44
+
+training:
+  save_dir: outputs/server_balanced_seed44
+  epochs: 100
+  batch_size: 2
+  num_workers: 4
+  lr: 0.0001
+  weight_decay: 0.0001
+  checkpoint_metric: balanced_accuracy
+  class_weights: balanced
+  modality_dropout_prob: 0.0
+  device: cuda:5
